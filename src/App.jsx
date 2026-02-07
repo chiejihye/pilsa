@@ -47,6 +47,7 @@ function App() {
     saveTranscription(
       sentence.id,
       sentence.drama,
+      sentence.dramaKorean,
       sentence.korean,
       sentence.english,
       text

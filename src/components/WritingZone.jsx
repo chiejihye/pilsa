@@ -1,30 +1,108 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { BlinkingCursor } from './BlinkingCursor';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTypewriterSound } from '../hooks/useTypewriterSound';
 
 /**
  * Right panel - the writing zone
- * Click anywhere to start typing with an invisible input and blinking cursor
+ * Features:
+ * - Precise cursor tracking synchronized with text flow
+ * - Korean IME (composition) handling
+ * - Invisible textarea with custom blinking cursor
  */
 export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   const textareaRef = useRef(null);
+  const textDisplayRef = useRef(null);
+  const cursorRef = useRef(null);
+  const containerRef = useRef(null);
+  
   const [isFocused, setIsFocused] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+  
   const { playKeySound, playSpaceSound, playEnterSound, initializeAudio } = useTypewriterSound();
+
+  /**
+   * Calculate cursor position based on text content
+   * Uses a hidden span to measure text width
+   */
+  const updateCursorPosition = useCallback(() => {
+    if (!textDisplayRef.current || !containerRef.current) return;
+
+    const displayEl = textDisplayRef.current;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    
+    // Create a temporary span to measure text
+    const measureSpan = document.createElement('span');
+    measureSpan.style.cssText = `
+      position: absolute;
+      visibility: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+      letter-spacing: inherit;
+      width: ${displayEl.clientWidth}px;
+    `;
+    measureSpan.textContent = text || '';
+    displayEl.appendChild(measureSpan);
+
+    // Get the position of the last character
+    const range = document.createRange();
+    if (measureSpan.firstChild) {
+      range.setStart(measureSpan.firstChild, text.length);
+      range.setEnd(measureSpan.firstChild, text.length);
+    } else {
+      range.selectNodeContents(measureSpan);
+    }
+    
+    const rects = range.getClientRects();
+    const lastRect = rects[rects.length - 1];
+    
+    if (lastRect) {
+      const displayRect = displayEl.getBoundingClientRect();
+      setCursorPosition({
+        x: lastRect.right - displayRect.left,
+        y: lastRect.top - displayRect.top
+      });
+    } else {
+      // Empty text - position at start
+      setCursorPosition({ x: 0, y: 0 });
+    }
+
+    displayEl.removeChild(measureSpan);
+  }, [text]);
+
+  // Update cursor position when text changes
+  useEffect(() => {
+    // Small delay to ensure DOM is updated
+    const timeoutId = requestAnimationFrame(() => {
+      updateCursorPosition();
+    });
+    return () => cancelAnimationFrame(timeoutId);
+  }, [text, updateCursorPosition]);
+
+  // Update cursor position on resize
+  useEffect(() => {
+    const handleResize = () => updateCursorPosition();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateCursorPosition]);
 
   // Handle click on the writing zone to focus
   const handleZoneClick = (e) => {
-    // Don't focus if clicking the save button
     if (e.target.closest('button')) return;
     
-    initializeAudio(); // Initialize audio on first interaction
+    initializeAudio();
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
   };
 
-  // Handle key presses for sound effects
+  // Handle key presses for sound effects (avoid during composition)
   const handleKeyDown = (e) => {
-    // Play appropriate sound based on key
+    // Don't play sounds during IME composition
+    if (isComposing) return;
+    
     if (e.key === 'Enter') {
       playEnterSound();
     } else if (e.key === ' ') {
@@ -39,7 +117,25 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
     onTextChange(e.target.value);
   };
 
-  // Auto-focus on mount for immediate typing experience
+  // Korean IME Composition handlers
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionUpdate = () => {
+    // Cursor stays at end during composition
+    // Don't trigger sounds during composition
+  };
+
+  const handleCompositionEnd = (e) => {
+    setIsComposing(false);
+    // Play a single sound when composition completes
+    if (e.data && e.data.length > 0) {
+      playKeySound();
+    }
+  };
+
+  // Auto-focus on mount
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus();
@@ -48,20 +144,38 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
 
   return (
     <div 
+      ref={containerRef}
       className="h-full dot-grid cursor-text relative"
       onClick={handleZoneClick}
     >
       {/* Writing container */}
       <div className="h-full w-full p-8 lg:p-12 flex flex-col overflow-hidden">
         {/* Text display area with cursor */}
-        <div className="flex-1 relative">
-          {/* Rendered text with cursor */}
+        <div className="flex-1 relative overflow-y-auto hide-scrollbar">
+          {/* Text display container */}
           <div 
-            className="absolute inset-0 text-lg lg:text-xl leading-relaxed text-neutral-800 whitespace-pre-wrap break-words pointer-events-none overflow-y-auto hide-scrollbar pr-4"
+            ref={textDisplayRef}
+            className="relative text-lg lg:text-xl leading-relaxed text-neutral-800 
+                       whitespace-pre-wrap break-words pr-4 min-h-full"
             aria-hidden="true"
           >
-            {text}
-            <BlinkingCursor visible={isFocused} />
+            {/* Rendered text */}
+            <span>{text}</span>
+            
+            {/* Custom blinking cursor - positioned inline */}
+            {isFocused && (
+              <span 
+                ref={cursorRef}
+                className="inline-block w-[1.5px] h-[1.1em] bg-neutral-700 
+                           align-middle rounded-full ml-[1px]"
+                style={{
+                  animation: 'blink-smooth 1.2s ease-in-out infinite',
+                  boxShadow: '0 0 4px rgba(0,0,0,0.1)',
+                  opacity: isComposing ? 0.5 : 1,
+                }}
+                aria-hidden="true"
+              />
+            )}
           </div>
 
           {/* Hidden textarea for actual input */}
@@ -72,7 +186,11 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="invisible-input absolute inset-0 w-full h-full text-lg lg:text-xl leading-relaxed text-transparent resize-none overflow-hidden"
+            onCompositionStart={handleCompositionStart}
+            onCompositionUpdate={handleCompositionUpdate}
+            onCompositionEnd={handleCompositionEnd}
+            className="absolute inset-0 w-full h-full opacity-0 resize-none cursor-text"
+            style={{ caretColor: 'transparent' }}
             placeholder=""
             spellCheck="false"
             autoComplete="off"
@@ -119,7 +237,6 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
         }}
         title={hasText ? "Finish & Save" : "Type something first"}
       >
-        {/* Checkmark icon */}
         <svg 
           style={{ width: '20px', height: '20px' }}
           fill="none" 

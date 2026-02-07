@@ -26,11 +26,12 @@ export function useArchive() {
   }, [archive]);
 
   // Save a completed transcription
-  const saveTranscription = useCallback((sentenceId, drama, korean, english, userTyped) => {
+  const saveTranscription = useCallback((sentenceId, drama, dramaKorean, korean, english, userTyped) => {
     const entry = {
       id: Date.now().toString(),
       sentenceId,
       drama,
+      dramaKorean,
       korean,
       english,
       userTyped,

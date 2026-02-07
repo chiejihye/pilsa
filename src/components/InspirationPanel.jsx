@@ -48,7 +48,7 @@ export function InspirationPanel({ sentence, onSaveWord, isWordSaved }) {
             {sentence.vocabulary.map((vocab, index) => (
               <li 
                 key={index} 
-                className="text-sm text-neutral-600 flex items-baseline gap-2"
+                className="text-sm text-neutral-600 flex items-center gap-3"
               >
                 <ClickableWord
                   word={vocab.word}
@@ -57,7 +57,6 @@ export function InspirationPanel({ sentence, onSaveWord, isWordSaved }) {
                   isAlreadySaved={isWordSaved(vocab.word)}
                   className="font-medium text-neutral-700"
                 />
-                <span className="text-neutral-200">—</span>
                 <span className="text-neutral-500 text-[13px]">
                   {vocab.meaning}
                 </span>

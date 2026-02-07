@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { sentences } from '../data/sentences';
+
+// Helper to get Korean drama title from sentences data
+const getKoreanTitle = (englishTitle) => {
+  const found = sentences.find(s => s.drama === englishTitle);
+  return found?.dramaKorean || null;
+};
 
 /**
  * Archive overlay with card-based layout and glassmorphism
@@ -169,11 +176,22 @@ export function ArchiveOverlay({
                       </svg>
                     </button>
 
-                    {/* Drama title */}
+                    {/* Drama title - Korean and English */}
                     <div className="mb-2 pr-8">
-                      <span className="text-[10px] uppercase tracking-widest text-neutral-400">
-                        {entry.drama}
-                      </span>
+                      {(() => {
+                        const koreanTitle = entry.dramaKorean || getKoreanTitle(entry.drama);
+                        return (
+                          <span className="text-[10px] tracking-wide text-neutral-400">
+                            {koreanTitle && (
+                              <span className="font-medium text-neutral-500">{koreanTitle}</span>
+                            )}
+                            {koreanTitle && entry.drama && (
+                              <span className="mx-1.5">·</span>
+                            )}
+                            <span className="uppercase tracking-widest">{entry.drama}</span>
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Korean quote preview */}
