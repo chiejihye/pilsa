@@ -4,10 +4,7 @@ import { SoundToast } from './SoundToast';
 import { SoundToggle } from './SoundToggle';
 
 /**
- * Writing zone with:
- * - Scrollable content area
- * - Fixed save button that doesn't overlap text
- * - Proper padding to avoid button overlap
+ * Writing zone with mobile audio support
  */
 export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   const textareaRef = useRef(null);
@@ -18,6 +15,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   const [isComposing, setIsComposing] = useState(false);
   const [showSoundToast, setShowSoundToast] = useState(false);
   const [hasShownToast, setHasShownToast] = useState(false);
+  const [showSoundPrompt, setShowSoundPrompt] = useState(true);
   
   const { 
     playKeySound, 
@@ -29,18 +27,29 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
     isUnlocked
   } = useTypewriterSound();
 
-  const handleZoneClick = (e) => {
+  // Handle tap/click to unlock audio and focus
+  const handleZoneClick = async (e) => {
     if (e.target.closest('button')) return;
     
-    const wasUnlocked = unlockAudio();
+    // Unlock audio on tap
+    const wasUnlocked = await unlockAudio();
     
+    // Show toast on first successful unlock
     if (wasUnlocked && !hasShownToast && isEnabled) {
       setShowSoundToast(true);
       setHasShownToast(true);
+      setShowSoundPrompt(false);
     }
     
     if (textareaRef.current) {
       textareaRef.current.focus();
+    }
+  };
+
+  // Handle touch start for mobile - ensures audio unlock happens on touch
+  const handleTouchStart = async () => {
+    if (!isUnlocked) {
+      await unlockAudio();
     }
   };
 
@@ -73,9 +82,18 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
     }
   };
 
-  const handleToggleSound = () => {
-    unlockAudio();
+  const handleToggleSound = async () => {
+    await unlockAudio();
     toggleSound();
+    setShowSoundPrompt(false);
+  };
+
+  const handleFocus = async () => {
+    setIsFocused(true);
+    // Also try to unlock on focus (keyboard open)
+    if (!isUnlocked) {
+      await unlockAudio();
+    }
   };
 
   useEffect(() => {
@@ -85,11 +103,19 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
     }
   }, []);
 
+  // Hide prompt after unlocked
+  useEffect(() => {
+    if (isUnlocked) {
+      setShowSoundPrompt(false);
+    }
+  }, [isUnlocked]);
+
   return (
     <div 
       ref={containerRef}
       className="h-full dot-grid cursor-text relative overflow-hidden"
       onClick={handleZoneClick}
+      onTouchStart={handleTouchStart}
     >
       {/* Sound toggle button */}
       <SoundToggle 
@@ -104,7 +130,17 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
         onHide={() => setShowSoundToast(false)} 
       />
 
-      {/* Writing container - with bottom padding to avoid save button overlap */}
+      {/* Mobile sound prompt - shows until first tap */}
+      {showSoundPrompt && !isUnlocked && (
+        <div className="absolute top-3 right-12 md:hidden z-20 
+                        text-[10px] text-neutral-400 
+                        bg-white/80 px-2 py-1 rounded-full
+                        animate-pulse">
+          Tap for sound
+        </div>
+      )}
+
+      {/* Writing container */}
       <div className="h-full w-full p-5 pb-20 md:p-8 md:pb-24 lg:p-12 lg:pb-24 flex flex-col">
         {/* Scrollable text area */}
         <div className="flex-1 relative overflow-y-auto hide-scrollbar">
@@ -141,7 +177,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
+            onFocus={handleFocus}
             onBlur={() => setIsFocused(false)}
             onCompositionStart={handleCompositionStart}
             onCompositionUpdate={handleCompositionUpdate}
@@ -166,7 +202,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
         </div>
       )}
 
-      {/* Save button - fixed position, always visible above content */}
+      {/* Save button */}
       <div className="absolute bottom-4 right-4 md:bottom-6 md:right-6 lg:bottom-8 lg:right-8 z-20">
         <button
           onClick={(e) => {
@@ -205,7 +241,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
         </button>
       </div>
 
-      {/* Vertical divider line - only on landscape/desktop */}
+      {/* Vertical divider line */}
       <div className="hidden landscape:block md:block absolute top-0 left-0 w-[1px] h-full bg-stone-200" />
     </div>
   );

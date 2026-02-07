@@ -1,34 +1,64 @@
 import React from 'react';
 
 /**
- * Subtle sound on/off toggle button
+ * Subtle sound toggle button with unlock state indicator
  */
 export function SoundToggle({ isEnabled, isUnlocked, onToggle }) {
   return (
     <button
-      onClick={onToggle}
-      className={`fixed top-3 right-3 md:top-4 md:right-4 z-30 
-                  p-2 md:p-2.5 rounded-xl transition-all duration-200
-                  ${isEnabled && isUnlocked
-                    ? 'text-neutral-500 hover:text-neutral-700 hover:bg-white/50' 
-                    : 'text-neutral-300 hover:text-neutral-500 hover:bg-white/50'
-                  }`}
-      aria-label={isEnabled ? 'Turn sound off' : 'Turn sound on'}
-      title={isEnabled ? 'Sound on' : 'Sound off'}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className="absolute top-3 right-3 md:top-4 md:right-4 z-20
+                 p-2 rounded-full 
+                 transition-all duration-200
+                 hover:bg-neutral-100 active:scale-95"
+      style={{
+        opacity: isEnabled ? 0.7 : 0.3,
+      }}
+      title={isEnabled ? 'Sound On (tap to mute)' : 'Sound Off (tap to enable)'}
+      aria-label={isEnabled ? 'Mute typing sounds' : 'Enable typing sounds'}
     >
-      {isEnabled && isUnlocked ? (
-        // Sound on icon
-        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
-                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+      {isEnabled ? (
+        // Speaker with sound waves
+        <svg 
+          className="w-4 h-4 md:w-5 md:h-5 text-neutral-600" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={1.5} 
+            d="M15.536 8.464a5 5 0 010 7.072M17.657 6.343a8 8 0 010 11.314M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 5v14a1 1 0 01-1.707.707L5.586 15z" 
+          />
+          {/* Small dot to show unlock status */}
+          {isUnlocked && (
+            <circle cx="20" cy="4" r="2" fill="#22c55e" />
+          )}
         </svg>
       ) : (
-        // Sound off icon
-        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
-                d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
-                d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+        // Muted speaker
+        <svg 
+          className="w-4 h-4 md:w-5 md:h-5 text-neutral-400" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={1.5} 
+            d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 5v14a1 1 0 01-1.707.707L5.586 15z" 
+          />
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={1.5} 
+            d="M17 9l-6 6M11 9l6 6" 
+          />
         </svg>
       )}
     </button>
