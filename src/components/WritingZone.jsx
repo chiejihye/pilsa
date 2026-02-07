@@ -10,6 +10,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   const textareaRef = useRef(null);
   const textDisplayRef = useRef(null);
   const containerRef = useRef(null);
+  const prevTextLengthRef = useRef(text.length);
   
   const [isFocused, setIsFocused] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
@@ -49,10 +50,16 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   // Handle touch start for mobile - ensures audio unlock happens on touch
   const handleTouchStart = async () => {
     if (!isUnlocked) {
-      await unlockAudio();
+      const success = await unlockAudio();
+      if (success && !hasShownToast && isEnabled) {
+        setShowSoundToast(true);
+        setHasShownToast(true);
+        setShowSoundPrompt(false);
+      }
     }
   };
 
+  // Desktop: play sound on keydown
   const handleKeyDown = (e) => {
     if (isComposing) return;
     
@@ -65,8 +72,52 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
     }
   };
 
+  // Handle text change - also play sound here for mobile compatibility
   const handleChange = (e) => {
-    onTextChange(e.target.value);
+    const newText = e.target.value;
+    const prevLength = prevTextLengthRef.current;
+    const newLength = newText.length;
+    
+    // Play sound based on what changed (for mobile where keydown may not fire)
+    if (!isComposing && newLength !== prevLength) {
+      // Check if it's a newline
+      if (newText.endsWith('\n') && !text.endsWith('\n')) {
+        // Enter was pressed - but keydown should handle this on desktop
+        // Only play if we're on mobile (detect by checking if keydown didn't fire)
+      } else if (newLength > prevLength) {
+        // Character added
+        const addedChar = newText.slice(-1);
+        if (addedChar === ' ') {
+          // Space - keydown should handle, but mobile backup
+        } else if (addedChar === '\n') {
+          // Enter
+        } else {
+          // Regular character - mobile backup
+          // Note: On desktop, keydown handles this. On mobile, this is the backup.
+        }
+      }
+    }
+    
+    prevTextLengthRef.current = newLength;
+    onTextChange(newText);
+  };
+
+  // Use beforeinput for better mobile support
+  const handleBeforeInput = (e) => {
+    if (isComposing) return;
+    
+    // Mobile browsers fire beforeinput reliably
+    if (e.inputType === 'insertText' || e.inputType === 'insertCompositionText') {
+      if (e.data === ' ') {
+        playSpaceSound();
+      } else if (e.data && e.data.length > 0) {
+        playKeySound();
+      }
+    } else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+      playEnterSound();
+    } else if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+      playKeySound();
+    }
   };
 
   const handleCompositionStart = () => {
@@ -83,9 +134,12 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   };
 
   const handleToggleSound = async () => {
-    await unlockAudio();
+    const success = await unlockAudio();
     toggleSound();
     setShowSoundPrompt(false);
+    if (success && !hasShownToast) {
+      setHasShownToast(true);
+    }
   };
 
   const handleFocus = async () => {
@@ -177,6 +231,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onBeforeInput={handleBeforeInput}
             onFocus={handleFocus}
             onBlur={() => setIsFocused(false)}
             onCompositionStart={handleCompositionStart}

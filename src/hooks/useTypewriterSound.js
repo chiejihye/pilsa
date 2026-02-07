@@ -8,21 +8,26 @@ export function useTypewriterSound() {
   const isUnlockedRef = useRef(false);
   const lastKeyTimeRef = useRef(0);
   const typingSpeedRef = useRef(0);
-  const testBufferRef = useRef(null);
   
   const [isEnabled, setIsEnabled] = useState(true);
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   /**
-   * Get or create audio context
+   * Get or create audio context - creates fresh if closed
    */
   const getAudioContext = useCallback(() => {
-    if (!audioContextRef.current) {
+    // Create new if doesn't exist or was closed
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
       try {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          console.error('Web Audio API not supported');
+          return null;
+        }
         audioContextRef.current = new AudioContextClass();
+        console.log('Created new AudioContext, state:', audioContextRef.current.state);
       } catch (e) {
-        console.warn('Failed to create AudioContext:', e);
+        console.error('Failed to create AudioContext:', e);
         return null;
       }
     }
@@ -30,58 +35,99 @@ export function useTypewriterSound() {
   }, []);
 
   /**
+   * Play a short click sound - used for unlock test
+   */
+  const playTestClick = useCallback((ctx) => {
+    try {
+      const now = ctx.currentTime;
+      
+      // Simple click oscillator
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 800;
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.05);
+      
+      console.log('Test click played');
+    } catch (e) {
+      console.error('Test click failed:', e);
+    }
+  }, []);
+
+  /**
    * Unlock audio context - MUST be called from user gesture (touch/click)
    */
   const unlockAudio = useCallback(async () => {
+    console.log('unlockAudio called, current state:', isUnlockedRef.current);
+    
     if (isUnlockedRef.current) {
+      // Already unlocked, but let's verify context is still running
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume();
+      }
       return true;
     }
 
     const audioContext = getAudioContext();
     if (!audioContext) {
+      console.error('No audio context available');
       return false;
     }
+
+    console.log('AudioContext state before unlock:', audioContext.state);
 
     try {
-      // Resume if suspended (required for iOS)
+      // Resume if suspended
       if (audioContext.state === 'suspended') {
+        console.log('Resuming suspended context...');
         await audioContext.resume();
+        console.log('Context resumed, new state:', audioContext.state);
       }
 
-      // Create and play a short silent buffer (iOS requires this)
-      const buffer = audioContext.createBuffer(1, 1, 22050);
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioContext.destination);
-      source.start(0);
+      // Play silent buffer (required for iOS Safari)
+      const silentBuffer = audioContext.createBuffer(1, 1, 22050);
+      const silentSource = audioContext.createBufferSource();
+      silentSource.buffer = silentBuffer;
+      silentSource.connect(audioContext.destination);
+      silentSource.start(0);
 
-      // Also create a test oscillator (some browsers need this)
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 0.001; // Nearly silent
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.01);
+      // Wait a tiny bit then check state
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Pre-create a noise buffer for faster playback later
-      const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.1, audioContext.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < output.length; i++) {
-        output[i] = Math.random() * 2 - 1;
+      if (audioContext.state === 'running') {
+        // Play audible test click to confirm it works
+        playTestClick(audioContext);
+        
+        isUnlockedRef.current = true;
+        setIsUnlocked(true);
+        console.log('Audio unlocked successfully!');
+        return true;
+      } else {
+        console.warn('Context not running after unlock attempt:', audioContext.state);
+        // Try resume again
+        await audioContext.resume();
+        if (audioContext.state === 'running') {
+          playTestClick(audioContext);
+          isUnlockedRef.current = true;
+          setIsUnlocked(true);
+          return true;
+        }
+        return false;
       }
-      testBufferRef.current = noiseBuffer;
-
-      isUnlockedRef.current = true;
-      setIsUnlocked(true);
-      
-      console.log('Audio unlocked successfully, state:', audioContext.state);
-      return true;
     } catch (error) {
-      console.warn('Failed to unlock audio:', error);
+      console.error('Failed to unlock audio:', error);
       return false;
     }
-  }, [getAudioContext]);
+  }, [getAudioContext, playTestClick]);
 
   /**
    * Toggle sound on/off
@@ -133,28 +179,39 @@ export function useTypewriterSound() {
   }, []);
 
   /**
-   * Check if audio is ready to play
+   * Ensure audio context is ready before playing
    */
-  const isAudioReady = useCallback(() => {
+  const ensureContextReady = useCallback(async () => {
     if (!isEnabled) return false;
-    if (!isUnlockedRef.current) return false;
+    
     const ctx = audioContextRef.current;
     if (!ctx) return false;
-    if (ctx.state !== 'running') {
-      // Try to resume
-      ctx.resume().catch(() => {});
-      return false;
+    
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch (e) {
+        return false;
+      }
     }
-    return true;
+    
+    return ctx.state === 'running';
   }, [isEnabled]);
 
   /**
    * Play typewriter key sound
    */
-  const playKeySound = useCallback(() => {
-    if (!isAudioReady()) return;
-
+  const playKeySound = useCallback(async () => {
+    if (!isEnabled || !isUnlockedRef.current) return;
+    
     const audioContext = audioContextRef.current;
+    if (!audioContext) return;
+    
+    // Ensure context is running
+    if (audioContext.state !== 'running') {
+      await audioContext.resume().catch(() => {});
+      if (audioContext.state !== 'running') return;
+    }
 
     try {
       const now = audioContext.currentTime;
@@ -181,7 +238,7 @@ export function useTypewriterSound() {
       highPassFilter.frequency.value = 100;
 
       const noiseGain = audioContext.createGain();
-      const baseVolume = 0.15 * volumeVariation;
+      const baseVolume = 0.25 * volumeVariation; // Increased volume
       noiseGain.gain.setValueAtTime(0.001, now);
       noiseGain.gain.linearRampToValueAtTime(baseVolume, now + 0.003);
       noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
@@ -200,7 +257,7 @@ export function useTypewriterSound() {
       clickOsc.frequency.value = 2000 * pitchVariation;
 
       const clickGain = audioContext.createGain();
-      clickGain.gain.setValueAtTime(0.05 * volumeVariation, now);
+      clickGain.gain.setValueAtTime(0.08 * volumeVariation, now); // Increased
       clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.008);
 
       clickOsc.connect(clickGain);
@@ -210,17 +267,23 @@ export function useTypewriterSound() {
       clickOsc.stop(now + 0.01);
 
     } catch (error) {
-      console.warn('Sound error:', error);
+      console.warn('playKeySound error:', error);
     }
-  }, [isAudioReady, createNoiseBuffer, getTypingModifier]);
+  }, [isEnabled, createNoiseBuffer, getTypingModifier]);
 
   /**
    * Play space bar sound
    */
-  const playSpaceSound = useCallback(() => {
-    if (!isAudioReady()) return;
-
+  const playSpaceSound = useCallback(async () => {
+    if (!isEnabled || !isUnlockedRef.current) return;
+    
     const audioContext = audioContextRef.current;
+    if (!audioContext) return;
+    
+    if (audioContext.state !== 'running') {
+      await audioContext.resume().catch(() => {});
+      if (audioContext.state !== 'running') return;
+    }
 
     try {
       const now = audioContext.currentTime;
@@ -239,7 +302,7 @@ export function useTypewriterSound() {
 
       const noiseGain = audioContext.createGain();
       noiseGain.gain.setValueAtTime(0.001, now);
-      noiseGain.gain.linearRampToValueAtTime(0.1 * volumeVariation, now + 0.005);
+      noiseGain.gain.linearRampToValueAtTime(0.15 * volumeVariation, now + 0.005); // Increased
       noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
       noiseSource.connect(lowPassFilter);
@@ -250,17 +313,23 @@ export function useTypewriterSound() {
       noiseSource.stop(now + 0.06);
 
     } catch (error) {
-      console.warn('Sound error:', error);
+      console.warn('playSpaceSound error:', error);
     }
-  }, [isAudioReady, createNoiseBuffer, getTypingModifier]);
+  }, [isEnabled, createNoiseBuffer, getTypingModifier]);
 
   /**
    * Play Enter key sound
    */
-  const playEnterSound = useCallback(() => {
-    if (!isAudioReady()) return;
-
+  const playEnterSound = useCallback(async () => {
+    if (!isEnabled || !isUnlockedRef.current) return;
+    
     const audioContext = audioContextRef.current;
+    if (!audioContext) return;
+    
+    if (audioContext.state !== 'running') {
+      await audioContext.resume().catch(() => {});
+      if (audioContext.state !== 'running') return;
+    }
 
     try {
       const now = audioContext.currentTime;
@@ -271,7 +340,7 @@ export function useTypewriterSound() {
       clickOsc.frequency.value = 1500;
 
       const clickGain = audioContext.createGain();
-      clickGain.gain.setValueAtTime(0.08, now);
+      clickGain.gain.setValueAtTime(0.12, now); // Increased
       clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
 
       clickOsc.connect(clickGain);
@@ -293,7 +362,7 @@ export function useTypewriterSound() {
 
         const slideGain = audioContext.createGain();
         slideGain.gain.setValueAtTime(0.001, now + 0.01);
-        slideGain.gain.linearRampToValueAtTime(0.06, now + 0.02);
+        slideGain.gain.linearRampToValueAtTime(0.1, now + 0.02); // Increased
         slideGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
         slideSource.connect(slideFilter);
@@ -311,7 +380,7 @@ export function useTypewriterSound() {
 
       const thudGain = audioContext.createGain();
       thudGain.gain.setValueAtTime(0.001, now + 0.08);
-      thudGain.gain.linearRampToValueAtTime(0.1, now + 0.085);
+      thudGain.gain.linearRampToValueAtTime(0.15, now + 0.085); // Increased
       thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
       thudOsc.connect(thudGain);
@@ -321,14 +390,14 @@ export function useTypewriterSound() {
       thudOsc.stop(now + 0.12);
 
     } catch (error) {
-      console.warn('Sound error:', error);
+      console.warn('playEnterSound error:', error);
     }
-  }, [isAudioReady, createNoiseBuffer]);
+  }, [isEnabled, createNoiseBuffer]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
       }
     };
