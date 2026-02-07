@@ -5,16 +5,16 @@ import { ClickableWord } from './ClickableWord';
  * Inspiration panel with responsive typography using clamp()
  * Horizontal scrolling vocabulary on mobile
  */
-export function InspirationPanel({ sentence, onSaveWord, isWordSaved }) {
+export function InspirationPanel({ sentence, onSaveWord, isWordSaved, onShuffle }) {
   if (!sentence) return null;
 
   return (
     <div className="h-full flex flex-col 
                     px-5 py-4 md:px-8 md:py-8 lg:px-12 lg:py-12
                     overflow-hidden">
-      {/* Drama source - Korean and English title */}
-      <div className="mb-3 md:mb-6 mt-10 md:mt-0 flex-shrink-0">
-        <span className="text-[10px] md:text-xs tracking-wide text-neutral-400 block truncate">
+      {/* Drama source - Korean and English title with shuffle button */}
+      <div className="mb-3 md:mb-6 mt-10 md:mt-0 flex-shrink-0 flex items-center justify-between gap-2">
+        <span className="text-[10px] md:text-xs tracking-wide text-neutral-400 truncate">
           {sentence.dramaKorean && (
             <span className="font-medium text-neutral-500">{sentence.dramaKorean}</span>
           )}
@@ -23,6 +23,32 @@ export function InspirationPanel({ sentence, onSaveWord, isWordSaved }) {
           )}
           <span className="uppercase tracking-widest">{sentence.drama}</span>
         </span>
+        
+        {/* Shuffle button */}
+        <button
+          onClick={onShuffle}
+          className="flex-shrink-0 p-1.5 rounded-full 
+                     text-neutral-300 hover:text-neutral-600 
+                     hover:bg-neutral-100 
+                     transition-all duration-200 
+                     active:scale-90"
+          title="New quote"
+          aria-label="Shuffle to new quote"
+        >
+          <svg 
+            className="w-3.5 h-3.5 md:w-4 md:h-4" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={1.5} 
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Korean quote - responsive font size using clamp */}

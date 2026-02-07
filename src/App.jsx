@@ -23,6 +23,11 @@ function App() {
     setSentence(todaysSentence);
   }, []);
 
+  const handleShuffleSentence = () => {
+    const newSentence = getRandomSentence();
+    setSentence(newSentence);
+  };
+
   const handleSaveWord = (word, meaning) => {
     addWord(word, meaning, sentence?.drama || '');
   };
@@ -95,6 +100,7 @@ function App() {
             sentence={sentence}
             onSaveWord={handleSaveWord}
             isWordSaved={isWordSaved}
+            onShuffle={handleShuffleSentence}
           />
         </div>
 
