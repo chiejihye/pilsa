@@ -20,6 +20,12 @@ export default {
       height: {
         'dvh': '100dvh',
       },
+      minHeight: {
+        'dvh': '100dvh',
+      },
+      screens: {
+        'landscape': { 'raw': '(orientation: landscape) and (max-height: 500px)' },
+      },
       backdropBlur: {
         'md': '12px',
       },

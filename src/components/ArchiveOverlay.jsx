@@ -74,15 +74,15 @@ export function ArchiveOverlay({
         onClick={onClose}
       />
 
-      {/* Sidebar panel with glassmorphism */}
+      {/* Sidebar panel with glassmorphism - responsive width */}
       <div 
-        className="fixed inset-y-0 left-0 w-full max-w-md z-50 slide-in-left
-                   bg-bone/80 backdrop-blur-md border-r border-neutral-200/50
+        className="fixed inset-y-0 left-0 w-full max-w-[90vw] md:max-w-md z-50 slide-in-left
+                   bg-bone/95 md:bg-bone/80 backdrop-blur-md border-r border-neutral-200/50
                    flex flex-col shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5">
-          <h2 className="text-base font-medium text-neutral-700 tracking-tight">Archive</h2>
+        <div className="flex items-center justify-between px-4 md:px-6 py-4 md:py-5">
+          <h2 className="text-sm md:text-base font-medium text-neutral-700 tracking-tight">Archive</h2>
           <button
             onClick={onClose}
             className="p-2 -mr-2 text-neutral-400 hover:text-neutral-600 
@@ -106,7 +106,7 @@ export function ArchiveOverlay({
         </div>
 
         {/* Tabs */}
-        <div className="flex mx-6 p-1 bg-neutral-100/50 rounded-lg">
+        <div className="flex mx-4 md:mx-6 p-1 bg-neutral-100/50 rounded-lg">
           <button
             onClick={() => setActiveTab('transcriptions')}
             className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-all
@@ -136,7 +136,7 @@ export function ArchiveOverlay({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar px-6 py-5">
+        <div className="flex-1 overflow-y-auto hide-scrollbar px-4 md:px-6 py-4 md:py-5">
           {activeTab === 'transcriptions' ? (
             <div className="space-y-4">
               {archive.length === 0 ? (

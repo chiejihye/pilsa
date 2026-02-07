@@ -6,87 +6,18 @@ import { useTypewriterSound } from '../hooks/useTypewriterSound';
  * Features:
  * - Precise cursor tracking synchronized with text flow
  * - Korean IME (composition) handling
- * - Invisible textarea with custom blinking cursor
+ * - Responsive padding and font sizes
+ * - Keyboard avoidance on mobile
  */
 export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
   const textareaRef = useRef(null);
   const textDisplayRef = useRef(null);
-  const cursorRef = useRef(null);
   const containerRef = useRef(null);
   
   const [isFocused, setIsFocused] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
-  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   
   const { playKeySound, playSpaceSound, playEnterSound, initializeAudio } = useTypewriterSound();
-
-  /**
-   * Calculate cursor position based on text content
-   * Uses a hidden span to measure text width
-   */
-  const updateCursorPosition = useCallback(() => {
-    if (!textDisplayRef.current || !containerRef.current) return;
-
-    const displayEl = textDisplayRef.current;
-    const containerRect = containerRef.current.getBoundingClientRect();
-    
-    // Create a temporary span to measure text
-    const measureSpan = document.createElement('span');
-    measureSpan.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      font-family: inherit;
-      font-size: inherit;
-      line-height: inherit;
-      letter-spacing: inherit;
-      width: ${displayEl.clientWidth}px;
-    `;
-    measureSpan.textContent = text || '';
-    displayEl.appendChild(measureSpan);
-
-    // Get the position of the last character
-    const range = document.createRange();
-    if (measureSpan.firstChild) {
-      range.setStart(measureSpan.firstChild, text.length);
-      range.setEnd(measureSpan.firstChild, text.length);
-    } else {
-      range.selectNodeContents(measureSpan);
-    }
-    
-    const rects = range.getClientRects();
-    const lastRect = rects[rects.length - 1];
-    
-    if (lastRect) {
-      const displayRect = displayEl.getBoundingClientRect();
-      setCursorPosition({
-        x: lastRect.right - displayRect.left,
-        y: lastRect.top - displayRect.top
-      });
-    } else {
-      // Empty text - position at start
-      setCursorPosition({ x: 0, y: 0 });
-    }
-
-    displayEl.removeChild(measureSpan);
-  }, [text]);
-
-  // Update cursor position when text changes
-  useEffect(() => {
-    // Small delay to ensure DOM is updated
-    const timeoutId = requestAnimationFrame(() => {
-      updateCursorPosition();
-    });
-    return () => cancelAnimationFrame(timeoutId);
-  }, [text, updateCursorPosition]);
-
-  // Update cursor position on resize
-  useEffect(() => {
-    const handleResize = () => updateCursorPosition();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateCursorPosition]);
 
   // Handle click on the writing zone to focus
   const handleZoneClick = (e) => {
@@ -100,7 +31,6 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
 
   // Handle key presses for sound effects (avoid during composition)
   const handleKeyDown = (e) => {
-    // Don't play sounds during IME composition
     if (isComposing) return;
     
     if (e.key === 'Enter') {
@@ -124,20 +54,20 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
 
   const handleCompositionUpdate = () => {
     // Cursor stays at end during composition
-    // Don't trigger sounds during composition
   };
 
   const handleCompositionEnd = (e) => {
     setIsComposing(false);
-    // Play a single sound when composition completes
     if (e.data && e.data.length > 0) {
       playKeySound();
     }
   };
 
-  // Auto-focus on mount
+  // Auto-focus on mount (desktop only)
   useEffect(() => {
-    if (textareaRef.current) {
+    // Only auto-focus on desktop to avoid keyboard popup on mobile
+    const isDesktop = window.innerWidth >= 768;
+    if (textareaRef.current && isDesktop) {
       textareaRef.current.focus();
     }
   }, []);
@@ -148,24 +78,23 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
       className="h-full dot-grid cursor-text relative"
       onClick={handleZoneClick}
     >
-      {/* Writing container */}
-      <div className="h-full w-full p-8 lg:p-12 flex flex-col overflow-hidden">
+      {/* Writing container - responsive padding */}
+      <div className="h-full w-full p-6 md:p-8 lg:p-12 flex flex-col overflow-hidden">
         {/* Text display area with cursor */}
         <div className="flex-1 relative overflow-y-auto hide-scrollbar">
-          {/* Text display container */}
+          {/* Text display container - responsive font size */}
           <div 
             ref={textDisplayRef}
-            className="relative text-lg lg:text-xl leading-relaxed text-neutral-800 
-                       whitespace-pre-wrap break-words pr-4 min-h-full"
+            className="relative text-base md:text-lg lg:text-xl leading-relaxed text-neutral-800 
+                       whitespace-pre-wrap break-words pr-2 md:pr-4 min-h-full"
             aria-hidden="true"
           >
             {/* Rendered text */}
             <span>{text}</span>
             
-            {/* Custom blinking cursor - positioned inline */}
+            {/* Custom blinking cursor */}
             {isFocused && (
               <span 
-                ref={cursorRef}
                 className="inline-block w-[1.5px] h-[1.1em] bg-neutral-700 
                            align-middle rounded-full ml-[1px]"
                 style={{
@@ -190,7 +119,7 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             onCompositionUpdate={handleCompositionUpdate}
             onCompositionEnd={handleCompositionEnd}
             className="absolute inset-0 w-full h-full opacity-0 resize-none cursor-text"
-            style={{ caretColor: 'transparent' }}
+            style={{ caretColor: 'transparent', fontSize: '16px' }} /* 16px prevents iOS zoom */
             placeholder=""
             spellCheck="false"
             autoComplete="off"
@@ -200,16 +129,16 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
         </div>
       </div>
 
-      {/* Subtle hint at bottom */}
+      {/* Subtle hint at bottom - responsive positioning */}
       {!text && !isFocused && (
-        <div className="absolute bottom-8 left-8 lg:left-12 pointer-events-none">
-          <p className="text-sm text-neutral-300 italic">
-            Click anywhere to begin writing...
+        <div className="absolute bottom-6 left-6 md:bottom-8 md:left-8 lg:left-12 pointer-events-none">
+          <p className="text-xs md:text-sm text-neutral-300 italic">
+            Tap to begin writing...
           </p>
         </div>
       )}
 
-      {/* Finish & Save button */}
+      {/* Finish & Save button - responsive positioning */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -217,28 +146,21 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             onFinishSession();
           }
         }}
+        className="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-50
+                   flex items-center gap-1.5 md:gap-2 
+                   px-3 py-2.5 md:px-5 md:py-3
+                   rounded-full border-none
+                   shadow-lg transition-all duration-200"
         style={{
-          position: 'fixed',
-          bottom: '32px',
-          right: '32px',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '12px 20px',
           backgroundColor: hasText ? '#262626' : '#a3a3a3',
           color: 'white',
-          borderRadius: '9999px',
-          border: 'none',
           cursor: hasText ? 'pointer' : 'default',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          transition: 'all 0.2s',
           opacity: hasText ? 1 : 0.5,
         }}
         title={hasText ? "Finish & Save" : "Type something first"}
       >
         <svg 
-          style={{ width: '20px', height: '20px' }}
+          className="w-4 h-4 md:w-5 md:h-5"
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -250,11 +172,11 @@ export function WritingZone({ text, onTextChange, onFinishSession, hasText }) {
             d="M5 13l4 4L19 7" 
           />
         </svg>
-        <span style={{ fontSize: '14px', fontWeight: 500 }}>Save</span>
+        <span className="text-xs md:text-sm font-medium">Save</span>
       </button>
 
-      {/* Subtle left border */}
-      <div className="absolute top-0 left-0 w-[1px] h-full bg-neutral-200" />
+      {/* Subtle left border - hidden on mobile when stacked */}
+      <div className="hidden landscape:block md:block absolute top-0 left-0 w-[1px] h-full bg-neutral-200" />
     </div>
   );
 }

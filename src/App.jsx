@@ -9,8 +9,9 @@ import { getTodaysSentence, getRandomSentence } from './data/sentences';
 
 /**
  * Main App component
- * 3:7 split-screen layout with Inspiration (left) and Writing Zone (right)
- * Uses h-dvh for proper mobile Safari support
+ * Responsive layout:
+ * - Mobile (portrait): Stacked vertically (40% inspiration, 60% writing)
+ * - Desktop/Landscape: 3:7 horizontal split
  */
 function App() {
   // Get today's sentence
@@ -66,13 +67,13 @@ function App() {
       {/* Archive button - top left corner */}
       <button
         onClick={() => setIsArchiveOpen(true)}
-        className="fixed top-4 left-4 z-30 p-2.5 text-neutral-300 
-                   hover:text-neutral-600 hover:bg-white/50
+        className="fixed top-3 left-3 md:top-4 md:left-4 z-30 p-2 md:p-2.5 
+                   text-neutral-300 hover:text-neutral-600 hover:bg-white/50
                    rounded-xl transition-all duration-200"
         aria-label="Open archive"
       >
         <svg 
-          className="w-5 h-5" 
+          className="w-4 h-4 md:w-5 md:h-5" 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -86,9 +87,9 @@ function App() {
         </svg>
       </button>
 
-      {/* Stats indicator */}
+      {/* Stats indicator - hidden on mobile for cleaner look */}
       {(archive.length > 0 || vocabulary.length > 0) && (
-        <div className="fixed top-5 left-14 z-30 flex items-center gap-3 text-[11px] text-neutral-300">
+        <div className="hidden md:flex fixed top-5 left-14 z-30 items-center gap-3 text-[11px] text-neutral-300">
           {archive.length > 0 && (
             <span>{archive.length} saved</span>
           )}
@@ -101,10 +102,18 @@ function App() {
         </div>
       )}
 
-      {/* 3:7 Split Layout */}
-      <div className="flex h-full">
-        {/* Left: Inspiration Panel (30%) */}
-        <div className="w-3/10 h-full bg-bone">
+      {/* Responsive Layout:
+          - Mobile portrait: flex-col (stacked)
+          - Landscape/Desktop: flex-row (side by side) */}
+      <div className="flex flex-col landscape:flex-row md:flex-row h-full">
+        {/* Inspiration Panel
+            - Mobile: 40% height
+            - Desktop: 30% width */}
+        <div className="h-[40%] landscape:h-full md:h-full 
+                        w-full landscape:w-3/10 md:w-3/10 
+                        bg-bone overflow-hidden
+                        border-b landscape:border-b-0 md:border-b-0 
+                        border-neutral-100">
           <InspirationPanel 
             sentence={sentence}
             onSaveWord={handleSaveWord}
@@ -112,8 +121,13 @@ function App() {
           />
         </div>
 
-        {/* Right: Writing Zone (70%) */}
-        <div className="w-7/10 h-full bg-bone">
+        {/* Writing Zone
+            - Mobile: 60% height with keyboard avoidance
+            - Desktop: 70% width */}
+        <div className="h-[60%] landscape:h-full md:h-full 
+                        min-h-[50dvh] landscape:min-h-0 md:min-h-0
+                        w-full landscape:w-7/10 md:w-7/10 
+                        bg-bone">
           <WritingZone 
             text={text} 
             onTextChange={setText}
