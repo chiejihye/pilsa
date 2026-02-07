@@ -1,59 +1,93 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 
 /**
- * Advanced typewriter sound engine with dynamic soundscapes
- * Volume and pitch vary based on typing speed for natural feel
+ * Advanced typewriter sound engine with mobile browser support
+ * Requires user gesture to unlock audio on iOS/Android
  */
 export function useTypewriterSound() {
   const audioContextRef = useRef(null);
-  const isInitializedRef = useRef(false);
+  const isUnlockedRef = useRef(false);
   const lastKeyTimeRef = useRef(0);
-  const typingSpeedRef = useRef(0); // Keys per second estimate
+  const typingSpeedRef = useRef(0);
+  
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
-  // Initialize AudioContext on first user interaction
-  const initializeAudio = useCallback(() => {
-    if (!isInitializedRef.current) {
-      try {
+  /**
+   * Unlock audio context - must be called from user gesture
+   * Creates a silent sound to unlock iOS/Android audio
+   */
+  const unlockAudio = useCallback(() => {
+    if (isUnlockedRef.current) return true;
+
+    try {
+      // Create or resume AudioContext
+      if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        isInitializedRef.current = true;
-      } catch (error) {
-        console.warn('Web Audio API not supported:', error);
       }
+
+      const audioContext = audioContextRef.current;
+
+      // Resume if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      // iOS requires playing a sound within the user gesture
+      // Create a silent oscillator to unlock
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      gainNode.gain.value = 0; // Silent
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.001);
+
+      isUnlockedRef.current = true;
+      setIsUnlocked(true);
+      
+      return true;
+    } catch (error) {
+      console.warn('Failed to unlock audio:', error);
+      return false;
     }
   }, []);
 
   /**
-   * Calculate typing speed and return a modifier
-   * Fast typing = quieter, more muted sounds
-   * Slow typing = clearer, more distinct sounds
+   * Toggle sound on/off
+   */
+  const toggleSound = useCallback(() => {
+    setIsEnabled(prev => !prev);
+  }, []);
+
+  /**
+   * Calculate typing speed modifier
    */
   const getTypingModifier = useCallback(() => {
     const now = Date.now();
     const timeSinceLastKey = now - lastKeyTimeRef.current;
     lastKeyTimeRef.current = now;
 
-    // Calculate approximate keys per second
     if (timeSinceLastKey > 0 && timeSinceLastKey < 2000) {
       const instantSpeed = 1000 / timeSinceLastKey;
-      // Smooth the speed estimate
       typingSpeedRef.current = typingSpeedRef.current * 0.7 + instantSpeed * 0.3;
     } else {
       typingSpeedRef.current = 0;
     }
 
-    // Fast typing (>8 keys/sec): quieter, higher pitch
-    // Slow typing (<2 keys/sec): louder, lower pitch
     const speed = Math.min(typingSpeedRef.current, 12);
     
     return {
-      volumeMultiplier: 1 - (speed / 20), // 1.0 at slow, 0.4 at fast
-      pitchMultiplier: 1 + (speed / 30),  // 1.0 at slow, 1.4 at fast
-      durationMultiplier: 1 - (speed / 25) // Shorter sounds when fast
+      volumeMultiplier: 1 - (speed / 20),
+      pitchMultiplier: 1 + (speed / 30),
+      durationMultiplier: 1 - (speed / 25)
     };
   }, []);
 
   /**
-   * Create a white noise buffer for mechanical sound
+   * Create a white noise buffer
    */
   const createNoiseBuffer = useCallback((duration) => {
     const audioContext = audioContextRef.current;
@@ -71,31 +105,24 @@ export function useTypewriterSound() {
   }, []);
 
   /**
-   * Play a realistic typewriter key sound with dynamic variation
+   * Play typewriter key sound
    */
   const playKeySound = useCallback(() => {
-    if (!audioContextRef.current) {
-      initializeAudio();
-    }
+    if (!isEnabled || !isUnlockedRef.current) return;
 
     const audioContext = audioContextRef.current;
-    if (!audioContext) return;
-
-    if (audioContext.state === 'suspended') {
-      audioContext.resume();
-    }
+    if (!audioContext || audioContext.state !== 'running') return;
 
     try {
       const now = audioContext.currentTime;
       const modifier = getTypingModifier();
       
-      // Random variations for natural feel
       const pitchVariation = (0.9 + Math.random() * 0.2) * modifier.pitchMultiplier;
       const volumeVariation = (0.7 + Math.random() * 0.6) * modifier.volumeMultiplier;
       const timingOffset = Math.random() * 0.003;
       const duration = 0.06 * modifier.durationMultiplier;
 
-      // === Layer 1: Primary mechanical thud ===
+      // Primary mechanical thud
       const noiseBuffer = createNoiseBuffer(duration + 0.02);
       if (!noiseBuffer) return;
 
@@ -123,7 +150,7 @@ export function useTypewriterSound() {
       highPassFilter.connect(noiseGain);
       noiseGain.connect(audioContext.destination);
 
-      // === Layer 2: Click transient ===
+      // Click transient
       const clickBuffer = createNoiseBuffer(0.012);
       if (clickBuffer) {
         const clickSource = audioContext.createBufferSource();
@@ -148,7 +175,7 @@ export function useTypewriterSound() {
         clickSource.stop(now + timingOffset + 0.012);
       }
 
-      // === Layer 3: Subtle body resonance ===
+      // Body resonance
       const resonance = audioContext.createOscillator();
       resonance.type = 'sine';
       resonance.frequency.value = 100 * pitchVariation;
@@ -170,22 +197,16 @@ export function useTypewriterSound() {
     } catch (error) {
       // Silently fail
     }
-  }, [initializeAudio, createNoiseBuffer, getTypingModifier]);
+  }, [isEnabled, createNoiseBuffer, getTypingModifier]);
 
   /**
-   * Play space bar sound - softer, broader thud
+   * Play space bar sound
    */
   const playSpaceSound = useCallback(() => {
-    if (!audioContextRef.current) {
-      initializeAudio();
-    }
+    if (!isEnabled || !isUnlockedRef.current) return;
 
     const audioContext = audioContextRef.current;
-    if (!audioContext) return;
-
-    if (audioContext.state === 'suspended') {
-      audioContext.resume();
-    }
+    if (!audioContext || audioContext.state !== 'running') return;
 
     try {
       const now = audioContext.currentTime;
@@ -223,22 +244,16 @@ export function useTypewriterSound() {
     } catch (error) {
       // Silently fail
     }
-  }, [initializeAudio, createNoiseBuffer, getTypingModifier]);
+  }, [isEnabled, createNoiseBuffer, getTypingModifier]);
 
   /**
-   * Play Enter/Return key sound - carriage return
+   * Play Enter key sound
    */
   const playEnterSound = useCallback(() => {
-    if (!audioContextRef.current) {
-      initializeAudio();
-    }
+    if (!isEnabled || !isUnlockedRef.current) return;
 
     const audioContext = audioContextRef.current;
-    if (!audioContext) return;
-
-    if (audioContext.state === 'suspended') {
-      audioContext.resume();
-    }
+    if (!audioContext || audioContext.state !== 'running') return;
 
     try {
       const now = audioContext.currentTime;
@@ -320,7 +335,7 @@ export function useTypewriterSound() {
     } catch (error) {
       // Silently fail
     }
-  }, [initializeAudio, createNoiseBuffer]);
+  }, [isEnabled, createNoiseBuffer]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -335,6 +350,9 @@ export function useTypewriterSound() {
     playKeySound,
     playSpaceSound,
     playEnterSound,
-    initializeAudio
+    unlockAudio,
+    toggleSound,
+    isEnabled,
+    isUnlocked
   };
 }

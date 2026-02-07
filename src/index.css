@@ -117,23 +117,32 @@ body {
 .vocab-word {
   position: relative;
   cursor: pointer;
-  padding: 4px 10px;
-  margin: -4px -2px;
-  border-radius: 6px;
-  background-color: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 6px 12px;
+  margin: -2px 0;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   transition: all 0.2s ease;
+  display: inline-block;
 }
 
 .vocab-word:hover {
-  background-color: rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
   color: #374151;
 }
 
 .vocab-word:active {
-  transform: scale(0.98);
-  background-color: rgba(0, 0, 0, 0.08);
+  transform: scale(0.97);
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile vocabulary compact style */
+@media (max-width: 767px) {
+  .vocab-word {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
 }
 
 /* Subtle button transitions */

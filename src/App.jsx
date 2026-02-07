@@ -9,42 +9,26 @@ import { getTodaysSentence, getRandomSentence } from './data/sentences';
 
 /**
  * Main App component
- * Responsive layout:
- * - Mobile (portrait): Stacked vertically (40% inspiration, 60% writing)
- * - Desktop/Landscape: 3:7 horizontal split
+ * Responsive layout with proper dividers and viewport handling
  */
 function App() {
-  // Get today's sentence
   const [sentence, setSentence] = useState(null);
-  
-  // Persist written text across refreshes
   const [text, setText] = useDraftStorage('pilsa_draft', '');
-
-  // Vocabulary management
   const { vocabulary, addWord, removeWord, isWordSaved } = useVocabulary();
-
-  // Archive management
   const { archive, saveTranscription, removeEntry } = useArchive();
-
-  // Archive overlay state
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 
-  // Load today's sentence on mount
   useEffect(() => {
     const todaysSentence = getTodaysSentence();
     setSentence(todaysSentence);
   }, []);
 
-  // Handle saving a word to vocabulary
   const handleSaveWord = (word, meaning) => {
     addWord(word, meaning, sentence?.drama || '');
   };
 
-  // Handle finishing and saving a session
   const handleFinishSession = () => {
     if (!sentence || !text.trim()) return;
-
-    // Save to archive
     saveTranscription(
       sentence.id,
       sentence.drama,
@@ -53,18 +37,14 @@ function App() {
       sentence.english,
       text
     );
-
-    // Clear the draft
     setText('');
-
-    // Load a new random sentence
     const newSentence = getRandomSentence();
     setSentence(newSentence);
   };
 
   return (
     <div className="h-dvh w-screen bg-bone overflow-hidden">
-      {/* Archive button - top left corner */}
+      {/* Archive button */}
       <button
         onClick={() => setIsArchiveOpen(true)}
         className="fixed top-3 left-3 md:top-4 md:left-4 z-30 p-2 md:p-2.5 
@@ -87,7 +67,7 @@ function App() {
         </svg>
       </button>
 
-      {/* Stats indicator - hidden on mobile for cleaner look */}
+      {/* Stats indicator - hidden on mobile */}
       {(archive.length > 0 || vocabulary.length > 0) && (
         <div className="hidden md:flex fixed top-5 left-14 z-30 items-center gap-3 text-[11px] text-neutral-300">
           {archive.length > 0 && (
@@ -102,18 +82,15 @@ function App() {
         </div>
       )}
 
-      {/* Responsive Layout:
-          - Mobile portrait: flex-col (stacked)
-          - Landscape/Desktop: flex-row (side by side) */}
+      {/* Responsive Layout */}
       <div className="flex flex-col landscape:flex-row md:flex-row h-full">
-        {/* Inspiration Panel
-            - Mobile: 40% height
-            - Desktop: 30% width */}
-        <div className="h-[40%] landscape:h-full md:h-full 
+        {/* Inspiration Panel */}
+        <div className="h-[38%] landscape:h-full md:h-full 
                         w-full landscape:w-3/10 md:w-3/10 
-                        bg-bone overflow-hidden
-                        border-b landscape:border-b-0 md:border-b-0 
-                        border-neutral-100">
+                        bg-bone 
+                        overflow-hidden
+                        border-b-2 border-stone-100 landscape:border-b-0 md:border-b-0
+                        landscape:border-r md:border-r landscape:border-stone-200 md:border-stone-200">
           <InspirationPanel 
             sentence={sentence}
             onSaveWord={handleSaveWord}
@@ -121,13 +98,11 @@ function App() {
           />
         </div>
 
-        {/* Writing Zone
-            - Mobile: 60% height with keyboard avoidance
-            - Desktop: 70% width */}
-        <div className="h-[60%] landscape:h-full md:h-full 
-                        min-h-[50dvh] landscape:min-h-0 md:min-h-0
+        {/* Writing Zone - slightly different background on mobile for visual separation */}
+        <div className="h-[62%] landscape:h-full md:h-full 
                         w-full landscape:w-7/10 md:w-7/10 
-                        bg-bone">
+                        bg-[#F8F7F4] landscape:bg-bone md:bg-bone
+                        relative">
           <WritingZone 
             text={text} 
             onTextChange={setText}
